@@ -1,0 +1,52 @@
+name: Publish NIGHTVAULT Blog Posts
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "0 14 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-nightvault-blog
+  cancel-in-progress: false
+
+jobs:
+  publish-blog:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get website files
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Publish next queued blog post
+        run: |
+          mkdir -p blog
+
+          POST=$(find blog-queue -maxdepth 1 -type f \( -name "*.html" -o -name "*.md" \) | sort | head -n 1)
+
+          if [ -z "$POST" ]; then
+            echo "No blog posts left in the queue."
+            exit 0
+          fi
+
+          echo "Publishing $POST"
+
+          FILENAME=$(basename "$POST")
+          mv "$POST" "blog/$FILENAME"
+
+      - name: Save published blog post
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add blog blog-queue
+
+          git commit -m "Publish NIGHTVAULT blog post" || exit 0
+
+          git pull --rebase origin main
+          git push origin main
